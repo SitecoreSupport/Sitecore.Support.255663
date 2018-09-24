@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using Sitecore.ContentSearch;
+using Sitecore.ContentSearch.Diagnostics;
 using Sitecore.Data;
 using Sitecore.Framework.Conditions;
 using Sitecore.Marketing;
@@ -20,21 +22,9 @@ namespace Sitecore.Support.Marketing.Search.Observers.Activation
     /// </summary>
     private readonly ILogger<UpdateSearchIndexObserver<T>> _logger;
 
-    private readonly Database database;
+    private readonly string databaseName;
 
-    private readonly ISearchIndex searchIndex;
-
-    [NotNull]
-    public Database Database
-    {
-      get { return database; }
-    }
-
-    [NotNull]
-    public ISearchIndex Index
-    {
-      get { return searchIndex; }
-    }
+    private readonly string searchIndexName;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UpdateSearchIndexObserver{T}"/> class.
@@ -59,8 +49,8 @@ namespace Sitecore.Support.Marketing.Search.Observers.Activation
       Condition.Requires(databaseName, nameof(databaseName)).IsNotNull();
       Condition.Requires(searchIndex, nameof(searchIndex)).IsNotNull();
 
-      database = Database.GetDatabase(databaseName);
-      this.searchIndex = ContentSearchManager.GetIndex(searchIndex);
+      this.databaseName = databaseName;
+      this.searchIndexName = searchIndex;
       _logger = logger;
     }
 
@@ -74,6 +64,7 @@ namespace Sitecore.Support.Marketing.Search.Observers.Activation
       var indexables = new List<SitecoreItemUniqueId>();
       foreach (var id in definitions.Select(x => x.Id))
       {
+        var database = Database.GetDatabase(this.databaseName);
         var item = database.GetItem(id);
         Condition.Requires(item, $"Unable to update marketing definitions search index. The definition id is not found: '{id}'.").IsNotNull();
 
@@ -84,6 +75,17 @@ namespace Sitecore.Support.Marketing.Search.Observers.Activation
         }
       }
 
+      ISearchIndex searchIndex = null;
+      try
+      {
+        searchIndex = ContentSearchManager.GetIndex(this.searchIndexName);
+      }
+      catch (Exception e)
+      {
+        SearchLog.Log.Error("Failed to access " + searchIndexName + " search index.", e);
+        return;
+      }
+      
       searchIndex.Update(indexables);
     }
   }
