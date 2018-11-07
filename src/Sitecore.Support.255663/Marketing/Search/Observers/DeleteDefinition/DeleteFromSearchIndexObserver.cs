@@ -1,8 +1,10 @@
 ﻿namespace Sitecore.Support.Marketing.Search.Observers.DeleteDefinition
 {
+  using System;
   using System.Linq;
   using Microsoft.Extensions.Logging;
   using Sitecore.ContentSearch;
+  using Sitecore.ContentSearch.Diagnostics;
   using Sitecore.ContentSearch.Utilities;
   using Sitecore.Data;
   using Sitecore.Framework.Conditions;
@@ -10,6 +12,7 @@
   using Sitecore.Marketing;
   using Sitecore.Marketing.Definitions;
   using Sitecore.Marketing.ObservableFeed.DeleteDefinition;
+  using Sitecore.Marketing.Search;
   using Sitecore.Marketing.xMgmt.Extensions;
 
   /// <summary>
@@ -54,12 +57,14 @@
     /// <summary>
     /// The database.
     /// </summary>
-    private readonly Database database;
+    //private readonly Database database;
+    private readonly string databaseName;
 
     /// <summary>
     /// The search index.
     /// </summary>
-    private readonly ISearchIndex searchIndex;
+    // private readonly ISearchIndex searchIndex;
+    private readonly string searchIndexName;
 
     private readonly ILogger logger;
 
@@ -86,25 +91,9 @@
       Condition.Requires(databaseName, "databaseName").IsNotNull();
       Condition.Requires(searchIndex, "searchIndex").IsNotNull();
 
-      database = Database.GetDatabase(databaseName);
-      this.searchIndex = ContentSearchManager.GetIndex(searchIndex);
+      this.databaseName = databaseName;
+      this.searchIndexName = searchIndex;
       this.logger = logger;
-    }
-
-    /// <summary>
-    /// Gets the database.
-    /// </summary>
-    public Database Database
-    {
-      get { return database; }
-    }
-
-    /// <summary>
-    /// Gets the index.
-    /// </summary>
-    public ISearchIndex Index
-    {
-      get { return searchIndex; }
     }
 
     /// <summary>
@@ -113,6 +102,19 @@
     /// <param name="args">The arguments of delete definition feed.</param>
     public void ProcessNotification(DeleteDefinitionArgs<TDefinition> args)
     {
+      var database = Database.GetDatabase(this.databaseName);
+
+      ISearchIndex searchIndex = null;
+      try
+      {
+        searchIndex = ContentSearchManager.GetIndex(this.searchIndexName);
+      }
+      catch (Exception e)
+      {
+        SearchLog.Log.Error("Failed to access " + searchIndexName + " search index.", e);
+        return;
+      }
+
       Condition.Requires(args, "args").IsNotNull();
 
       logger.LogInformation("Deleting from marketing definitions search index: '{0}'.", args.Id);
@@ -121,7 +123,7 @@
       {
         searchContext.GetQueryable<TIndexedDefinition>()
             .Where(c => c.Id == args.Id).ToArray()
-            .Select(c => new SitecoreItemUniqueId(new ItemUri(c.Id.ToID(), Language.Parse(c.Culture.Name), Version.Parse(c.Version), Database)))
+            .Select(c => new SitecoreItemUniqueId(new ItemUri(c.Id.ToID(), Language.Parse(c.Culture.Name), Data.Version.Parse(c.Version), database)))
             .ForEach(c => searchIndex.Delete(c));
       }
     }
