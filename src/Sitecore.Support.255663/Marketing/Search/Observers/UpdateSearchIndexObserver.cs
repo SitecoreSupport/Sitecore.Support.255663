@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using Sitecore.ContentSearch;
+using Sitecore.ContentSearch.Maintenance;
 using Sitecore.Diagnostics;
 using Sitecore.Marketing.Definitions;
 using Sitecore.StringExtensions;
@@ -9,12 +10,12 @@ namespace Sitecore.Support.Marketing.Search.Observers
 {
   public class UpdateSearchIndexObserver<T> : Sitecore.Marketing.Search.Observers.UpdateSearchIndexObserver<T> where T : IDefinition
     {
-        private readonly ISearchIndex searchIndex;
+        private readonly string searchIndexName;
 
         public UpdateSearchIndexObserver([NotNull] string databaseName, [NotNull] string searchIndex) : base(databaseName, searchIndex)
         {
             Assert.ArgumentNotNull(searchIndex, "searchIndex");
-            this.searchIndex = ContentSearchManager.GetIndex(searchIndex);
+            this.searchIndexName = searchIndex;
         }
 
         public override void ProcessNotification([NotNull] IReadOnlyCollection<T> definitions)
@@ -33,7 +34,7 @@ namespace Sitecore.Support.Marketing.Search.Observers
                 }
             }
 
-            this.searchIndex.Update(indexables);
+            IndexCustodian.IncrementalUpdate(ContentSearchManager.GetIndex(searchIndexName), indexables);
         }
     }
 }
